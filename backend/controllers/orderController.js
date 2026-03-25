@@ -27,7 +27,6 @@ const ALLOWED_STATUS = [
 
 const CUSTOMER_CANCELLABLE_STATUS = ["Order Placed", "Processing"];
 
-// RESTORE ORDER STOCK
 const restoreOrderStock = async (order, session = null) => {
   for (const item of order.orderItems) {
     let productQuery = Product.findById(item.product);
@@ -73,7 +72,6 @@ const restoreOrderStock = async (order, session = null) => {
   }
 };
 
-// PLACE ORDER
 const placeOrder = async (req, res) => {
   const session = await mongoose.startSession();
 
@@ -303,24 +301,32 @@ const placeOrder = async (req, res) => {
       "orderItems.product"
     );
 
+    // fire-and-forget customer email
     try {
       const customerEmailData = getCustomerOrderConfirmationTemplate({
         order: populatedOrder,
         user,
       });
 
-      await sendEmail({
-        to: user.email,
-        subject: customerEmailData.subject,
-        text: customerEmailData.text,
-        html: customerEmailData.html,
-      });
-
-      console.log("CUSTOMER ORDER EMAIL SENT");
+      Promise.resolve(
+        sendEmail({
+          to: user.email,
+          subject: customerEmailData.subject,
+          text: customerEmailData.text,
+          html: customerEmailData.html,
+        })
+      )
+        .then((info) => {
+          console.log("CUSTOMER ORDER EMAIL SENT:", info?.response || info);
+        })
+        .catch((emailError) => {
+          console.error("CUSTOMER ORDER EMAIL ERROR:", emailError);
+        });
     } catch (emailError) {
-      console.error("CUSTOMER ORDER EMAIL ERROR:", emailError);
+      console.error("CUSTOMER ORDER EMAIL PREP ERROR:", emailError);
     }
 
+    // fire-and-forget admin email
     try {
       if (process.env.ADMIN_EMAIL) {
         const adminEmailData = getAdminNewOrderTemplate({
@@ -328,17 +334,23 @@ const placeOrder = async (req, res) => {
           user,
         });
 
-        await sendEmail({
-          to: process.env.ADMIN_EMAIL,
-          subject: adminEmailData.subject,
-          text: adminEmailData.text,
-          html: adminEmailData.html,
-        });
-
-        console.log("ADMIN ORDER EMAIL SENT");
+        Promise.resolve(
+          sendEmail({
+            to: process.env.ADMIN_EMAIL,
+            subject: adminEmailData.subject,
+            text: adminEmailData.text,
+            html: adminEmailData.html,
+          })
+        )
+          .then((info) => {
+            console.log("ADMIN ORDER EMAIL SENT:", info?.response || info);
+          })
+          .catch((emailError) => {
+            console.error("ADMIN ORDER EMAIL ERROR:", emailError);
+          });
       }
     } catch (emailError) {
-      console.error("ADMIN ORDER EMAIL ERROR:", emailError);
+      console.error("ADMIN ORDER EMAIL PREP ERROR:", emailError);
     }
 
     return res.status(201).json(populatedOrder);
@@ -354,7 +366,6 @@ const placeOrder = async (req, res) => {
   }
 };
 
-// GET MY ORDERS
 const getMyOrders = async (req, res) => {
   try {
     const orders = await Order.find({ user: req.user._id })
@@ -369,7 +380,6 @@ const getMyOrders = async (req, res) => {
   }
 };
 
-// GET ALL ORDERS
 const getAllOrders = async (req, res) => {
   try {
     const orders = await Order.find()
@@ -385,7 +395,6 @@ const getAllOrders = async (req, res) => {
   }
 };
 
-// CANCEL MY ORDER
 const cancelMyOrder = async (req, res) => {
   const session = await mongoose.startSession();
 
@@ -452,17 +461,23 @@ const cancelMyOrder = async (req, res) => {
           status: "Cancelled",
         });
 
-        await sendEmail({
-          to: order.user.email,
-          subject: statusEmailData.subject,
-          text: statusEmailData.text,
-          html: statusEmailData.html,
-        });
-
-        console.log("CUSTOMER CANCEL EMAIL SENT");
+        Promise.resolve(
+          sendEmail({
+            to: order.user.email,
+            subject: statusEmailData.subject,
+            text: statusEmailData.text,
+            html: statusEmailData.html,
+          })
+        )
+          .then((info) => {
+            console.log("CUSTOMER CANCEL EMAIL SENT:", info?.response || info);
+          })
+          .catch((emailError) => {
+            console.error("CUSTOMER CANCEL EMAIL ERROR:", emailError);
+          });
       }
     } catch (emailError) {
-      console.error("CUSTOMER CANCEL EMAIL ERROR:", emailError);
+      console.error("CUSTOMER CANCEL EMAIL PREP ERROR:", emailError);
     }
 
     return res.json({
@@ -481,7 +496,6 @@ const cancelMyOrder = async (req, res) => {
   }
 };
 
-// UPDATE ORDER STATUS (ADMIN)
 const updateOrderStatus = async (req, res) => {
   try {
     console.log("UPDATE ORDER STATUS HIT");
@@ -577,6 +591,7 @@ const updateOrderStatus = async (req, res) => {
     const updatedOrder = await order.save();
     console.log("AFTER ORDER SAVE");
 
+    // fire-and-forget email so API never hangs
     try {
       if (order.user?.email) {
         const statusEmailData = getOrderStatusUpdateTemplate({
@@ -585,20 +600,23 @@ const updateOrderStatus = async (req, res) => {
           status: newStatus,
         });
 
-        const emailResult = await sendEmail({
-          to: order.user.email,
-          subject: statusEmailData.subject,
-          text: statusEmailData.text,
-          html: statusEmailData.html,
-        });
-
-        console.log(
-          "ORDER STATUS EMAIL SENT:",
-          emailResult?.response || emailResult
-        );
+        Promise.resolve(
+          sendEmail({
+            to: order.user.email,
+            subject: statusEmailData.subject,
+            text: statusEmailData.text,
+            html: statusEmailData.html,
+          })
+        )
+          .then((info) => {
+            console.log("ORDER STATUS EMAIL SENT:", info?.response || info);
+          })
+          .catch((emailError) => {
+            console.error("ORDER STATUS EMAIL ERROR:", emailError);
+          });
       }
     } catch (emailError) {
-      console.error("ORDER STATUS EMAIL ERROR:", emailError);
+      console.error("ORDER STATUS EMAIL PREP ERROR:", emailError);
     }
 
     return res.status(200).json({
@@ -614,7 +632,6 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
-// DOWNLOAD INVOICE
 const downloadInvoice = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id)
