@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const BASE_URL =
-  import.meta.env.VITE_API_URL?.trim() || "http://localhost:5000/api";
+  import.meta.env.VITE_API_URL?.trim() || "https://jewellery-store-jizw.onrender.com/api";
 
 const API = axios.create({
   baseURL: BASE_URL,
