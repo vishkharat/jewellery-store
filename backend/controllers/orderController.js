@@ -315,8 +315,10 @@ const placeOrder = async (req, res) => {
         text: customerEmailData.text,
         html: customerEmailData.html,
       });
+
+      console.log("CUSTOMER ORDER EMAIL SENT");
     } catch (emailError) {
-      console.error("CUSTOMER ORDER EMAIL ERROR:", emailError.message);
+      console.error("CUSTOMER ORDER EMAIL ERROR:", emailError);
     }
 
     try {
@@ -332,9 +334,11 @@ const placeOrder = async (req, res) => {
           text: adminEmailData.text,
           html: adminEmailData.html,
         });
+
+        console.log("ADMIN ORDER EMAIL SENT");
       }
     } catch (emailError) {
-      console.error("ADMIN ORDER EMAIL ERROR:", emailError.message);
+      console.error("ADMIN ORDER EMAIL ERROR:", emailError);
     }
 
     return res.status(201).json(populatedOrder);
@@ -454,9 +458,11 @@ const cancelMyOrder = async (req, res) => {
           text: statusEmailData.text,
           html: statusEmailData.html,
         });
+
+        console.log("CUSTOMER CANCEL EMAIL SENT");
       }
     } catch (emailError) {
-      console.error("CUSTOMER CANCEL EMAIL ERROR:", emailError.message);
+      console.error("CUSTOMER CANCEL EMAIL ERROR:", emailError);
     }
 
     return res.json({
@@ -476,10 +482,6 @@ const cancelMyOrder = async (req, res) => {
 };
 
 // UPDATE ORDER STATUS (ADMIN)
-// IMPORTANT:
-// 1) session/transaction remove kari didha chhe
-// 2) email send temporarily remove kari didho chhe
-// jethi request hang na thai
 const updateOrderStatus = async (req, res) => {
   try {
     console.log("UPDATE ORDER STATUS HIT");
@@ -574,6 +576,30 @@ const updateOrderStatus = async (req, res) => {
     console.log("BEFORE ORDER SAVE");
     const updatedOrder = await order.save();
     console.log("AFTER ORDER SAVE");
+
+    try {
+      if (order.user?.email) {
+        const statusEmailData = getOrderStatusUpdateTemplate({
+          order: updatedOrder,
+          user: order.user,
+          status: newStatus,
+        });
+
+        const emailResult = await sendEmail({
+          to: order.user.email,
+          subject: statusEmailData.subject,
+          text: statusEmailData.text,
+          html: statusEmailData.html,
+        });
+
+        console.log(
+          "ORDER STATUS EMAIL SENT:",
+          emailResult?.response || emailResult
+        );
+      }
+    } catch (emailError) {
+      console.error("ORDER STATUS EMAIL ERROR:", emailError);
+    }
 
     return res.status(200).json({
       message: "Order updated successfully",
