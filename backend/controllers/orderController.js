@@ -27,7 +27,7 @@ const ALLOWED_STATUS = [
 
 const CUSTOMER_CANCELLABLE_STATUS = ["Order Placed", "Processing"];
 
-// RESTORE STOCK
+// RESTORE ORDER STOCK
 const restoreOrderStock = async (order, session = null) => {
   for (const item of order.orderItems) {
     let productQuery = Product.findById(item.product);
@@ -476,10 +476,14 @@ const cancelMyOrder = async (req, res) => {
 };
 
 // UPDATE ORDER STATUS (ADMIN)
-// NOTE: aa function ma session/transaction intentionally remove kari didha chhe
-// jethi admin panel ma "Saving..." stuck no issue na ave
+// IMPORTANT:
+// 1) session/transaction remove kari didha chhe
+// 2) email send temporarily remove kari didho chhe
+// jethi request hang na thai
 const updateOrderStatus = async (req, res) => {
   try {
+    console.log("UPDATE ORDER STATUS HIT");
+
     const {
       status: newStatus,
       courierName = "",
@@ -567,26 +571,9 @@ const updateOrderStatus = async (req, res) => {
       });
     }
 
+    console.log("BEFORE ORDER SAVE");
     const updatedOrder = await order.save();
-
-    try {
-      if (order.user?.email) {
-        const statusEmailData = getOrderStatusUpdateTemplate({
-          order: updatedOrder,
-          user: order.user,
-          status: newStatus,
-        });
-
-        await sendEmail({
-          to: order.user.email,
-          subject: statusEmailData.subject,
-          text: statusEmailData.text,
-          html: statusEmailData.html,
-        });
-      }
-    } catch (emailError) {
-      console.error("ORDER STATUS EMAIL ERROR:", emailError.message);
-    }
+    console.log("AFTER ORDER SAVE");
 
     return res.status(200).json({
       message: "Order updated successfully",
