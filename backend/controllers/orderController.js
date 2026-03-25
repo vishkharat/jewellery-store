@@ -27,6 +27,7 @@ const ALLOWED_STATUS = [
 
 const CUSTOMER_CANCELLABLE_STATUS = ["Order Placed", "Processing"];
 
+// RESTORE STOCK
 const restoreOrderStock = async (order, session = null) => {
   for (const item of order.orderItems) {
     let productQuery = Product.findById(item.product);
@@ -72,6 +73,7 @@ const restoreOrderStock = async (order, session = null) => {
   }
 };
 
+// PLACE ORDER
 const placeOrder = async (req, res) => {
   const session = await mongoose.startSession();
 
@@ -348,6 +350,7 @@ const placeOrder = async (req, res) => {
   }
 };
 
+// GET MY ORDERS
 const getMyOrders = async (req, res) => {
   try {
     const orders = await Order.find({ user: req.user._id })
@@ -362,6 +365,7 @@ const getMyOrders = async (req, res) => {
   }
 };
 
+// GET ALL ORDERS
 const getAllOrders = async (req, res) => {
   try {
     const orders = await Order.find()
@@ -377,6 +381,7 @@ const getAllOrders = async (req, res) => {
   }
 };
 
+// CANCEL MY ORDER
 const cancelMyOrder = async (req, res) => {
   const session = await mongoose.startSession();
 
@@ -470,12 +475,11 @@ const cancelMyOrder = async (req, res) => {
   }
 };
 
+// UPDATE ORDER STATUS (ADMIN)
+// NOTE: aa function ma session/transaction intentionally remove kari didha chhe
+// jethi admin panel ma "Saving..." stuck no issue na ave
 const updateOrderStatus = async (req, res) => {
-  const session = await mongoose.startSession();
-
   try {
-    session.startTransaction();
-
     const {
       status: newStatus,
       courierName = "",
@@ -485,17 +489,16 @@ const updateOrderStatus = async (req, res) => {
     } = req.body;
 
     if (!ALLOWED_STATUS.includes(newStatus)) {
-      throw new Error("Invalid order status");
+      return res.status(400).json({
+        message: "Invalid order status",
+      });
     }
 
     const order = await Order.findById(req.params.id)
       .populate("user", "name email")
-      .populate("orderItems.product")
-      .session(session);
+      .populate("orderItems.product");
 
     if (!order) {
-      await session.abortTransaction();
-      session.endSession();
       return res.status(404).json({
         message: "Order not found",
       });
@@ -504,15 +507,19 @@ const updateOrderStatus = async (req, res) => {
     const oldStatus = order.status;
 
     if (oldStatus === "Cancelled") {
-      throw new Error("Cancelled order cannot be updated");
+      return res.status(400).json({
+        message: "Cancelled order cannot be updated",
+      });
     }
 
     if (oldStatus === "Delivered" && newStatus !== "Delivered") {
-      throw new Error("Delivered order cannot be changed");
+      return res.status(400).json({
+        message: "Delivered order cannot be changed",
+      });
     }
 
-    if (newStatus === "Cancelled") {
-      await restoreOrderStock(order, session);
+    if (newStatus === "Cancelled" && oldStatus !== "Cancelled") {
+      await restoreOrderStock(order);
     }
 
     const mergedShippingDetails = {
@@ -542,7 +549,9 @@ const updateOrderStatus = async (req, res) => {
         !mergedShippingDetails.courierName ||
         !mergedShippingDetails.trackingNumber
       ) {
-        throw new Error("Courier name and tracking number are required");
+        return res.status(400).json({
+          message: "Courier name and tracking number are required",
+        });
       }
     }
 
@@ -558,10 +567,7 @@ const updateOrderStatus = async (req, res) => {
       });
     }
 
-    const updatedOrder = await order.save({ session });
-
-    await session.commitTransaction();
-    session.endSession();
+    const updatedOrder = await order.save();
 
     try {
       if (order.user?.email) {
@@ -582,11 +588,11 @@ const updateOrderStatus = async (req, res) => {
       console.error("ORDER STATUS EMAIL ERROR:", emailError.message);
     }
 
-    return res.json(updatedOrder);
+    return res.status(200).json({
+      message: "Order updated successfully",
+      order: updatedOrder,
+    });
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-
     console.error("UPDATE ORDER STATUS ERROR:", error);
 
     return res.status(500).json({
@@ -595,6 +601,7 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
+// DOWNLOAD INVOICE
 const downloadInvoice = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id)
