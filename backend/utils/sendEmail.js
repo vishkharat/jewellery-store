@@ -1,13 +1,6 @@
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 
-// ✅ reusable transporter
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS, // App Password required
-  },
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const sendEmail = async (arg1, arg2, arg3) => {
   try {
@@ -27,34 +20,48 @@ const sendEmail = async (arg1, arg2, arg3) => {
       text = arg3 || "";
     }
 
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      throw new Error("EMAIL env variables missing");
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error("RESEND_API_KEY is missing");
+    }
+
+    if (!process.env.EMAIL_FROM) {
+      throw new Error("EMAIL_FROM is missing");
     }
 
     if (!to) {
-      throw new Error("Recipient email missing");
+      throw new Error("Recipient email is missing");
     }
 
-    const mailOptions = {
-      from: `"AURUM" <${process.env.EMAIL_USER}>`,
-      to,
+    const payload = {
+      from: process.env.EMAIL_FROM,
+      to: Array.isArray(to) ? to : [to],
       subject,
       text,
       html,
     };
 
-    const info = await transporter.sendMail(mailOptions);
+    const { data, error } = await resend.emails.send(payload);
 
-    console.log("📧 EMAIL SENT SUCCESS:", {
-      to,
-      subject,
-      messageId: info.messageId,
-    });
+    if (error) {
+      console.error("❌ RESEND EMAIL FAILED:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to send email",
+      };
+    }
 
-    return { success: true };
+    console.log("✅ RESEND EMAIL SENT:", data);
+
+    return {
+      success: true,
+      data,
+    };
   } catch (error) {
     console.error("❌ EMAIL FAILED:", error.message);
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error: error.message,
+    };
   }
 };
 

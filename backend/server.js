@@ -25,10 +25,10 @@ const app = express();
 // CONNECT DATABASE
 connectDB();
 
-// TRUST PROXY FOR DEPLOYMENTS LIKE RENDER / NGINX
+// TRUST PROXY FOR RENDER / NGINX
 app.set("trust proxy", 1);
 
-// ONLY KEEP TLS OVERRIDE IN DEVELOPMENT IF REALLY NEEDED
+// ONLY IN DEVELOPMENT IF REALLY NEEDED
 if (process.env.NODE_ENV !== "production") {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 }
@@ -40,33 +40,59 @@ app.use(
   })
 );
 
-// ALLOWED ORIGINS
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  process.env.ADMIN_FRONTEND_URL,
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-].filter(Boolean);
+// HELPERS
+const parseOrigins = (value) => {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+};
+
+const exactAllowedOrigins = [
+  ...parseOrigins(process.env.FRONTEND_URL),
+  ...parseOrigins(process.env.ADMIN_FRONTEND_URL),
+  "https://jewellery-store-henna.vercel.app/",
+  "https://jewellery-store-henna.vercel.app/admin",
+];
+
+const allowedOriginPatterns = [
+  /^https:\/\/.*\.vercel\.app$/,
+];
+
+const isOriginAllowed = (origin) => {
+  if (!origin) return true;
+
+  if (exactAllowedOrigins.includes(origin)) {
+    return true;
+  }
+
+  return allowedOriginPatterns.some((pattern) => pattern.test(origin));
+};
+
+console.log("✅ Allowed CORS origins:", exactAllowedOrigins);
 
 // CORS
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin) {
+      if (isOriginAllowed(origin)) {
         return callback(null, true);
       }
 
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
+      console.error("❌ CORS BLOCKED ORIGIN:", origin);
       return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
-// BODY PARSERS WITH LIMIT
+// HANDLE PREFLIGHT
+app.options("*", cors());
+
+// BODY PARSERS
 app.use(express.json({ limit: "10kb" }));
 app.use(express.urlencoded({ extended: true, limit: "10kb" }));
 
@@ -103,7 +129,7 @@ const paymentLimiter = rateLimit({
 
 app.use("/api", globalLimiter);
 
-// TEST ROUTE
+// ROOT ROUTE
 app.get("/", (req, res) => {
   res.send("Jewellery Ecommerce Backend Running");
 });
@@ -132,11 +158,12 @@ app.use((req, res) => {
 
 // GLOBAL ERROR HANDLER
 app.use((err, req, res, next) => {
-  console.error("GLOBAL ERROR:", err);
+  console.error("GLOBAL ERROR:", err.message);
 
   if (err.message === "Not allowed by CORS") {
     return res.status(403).json({
       message: "CORS blocked this request origin",
+      origin: req.headers.origin || "unknown",
     });
   }
 
@@ -151,5 +178,5 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
