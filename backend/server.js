@@ -46,28 +46,34 @@ const parseOrigins = (value) => {
   return value
     .split(",")
     .map((item) => item.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((item) => item.replace(/\/$/, ""));
 };
 
 const exactAllowedOrigins = [
   ...parseOrigins(process.env.FRONTEND_URL),
   ...parseOrigins(process.env.ADMIN_FRONTEND_URL),
   "https://jewellery-store-henna.vercel.app/",
-  "https://jewellery-store-henna.vercel.app/admin",
-];
+  "https://jewellery-store-henna.vercel.app/",
+].filter(Boolean);
 
-const allowedOriginPatterns = [
-  /^https:\/\/.*\.vercel\.app$/,
-];
+const allowedOriginPatterns = [/^https:\/\/.*\.vercel\.app$/];
+
+const normalizeOrigin = (origin) => {
+  if (!origin) return origin;
+  return origin.replace(/\/$/, "");
+};
 
 const isOriginAllowed = (origin) => {
   if (!origin) return true;
 
-  if (exactAllowedOrigins.includes(origin)) {
+  const cleanOrigin = normalizeOrigin(origin);
+
+  if (exactAllowedOrigins.includes(cleanOrigin)) {
     return true;
   }
 
-  return allowedOriginPatterns.some((pattern) => pattern.test(origin));
+  return allowedOriginPatterns.some((pattern) => pattern.test(cleanOrigin));
 };
 
 console.log("✅ Allowed CORS origins:", exactAllowedOrigins);
@@ -88,9 +94,6 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
-
-// HANDLE PREFLIGHT
-app.options("*", cors());
 
 // BODY PARSERS
 app.use(express.json({ limit: "10kb" }));
