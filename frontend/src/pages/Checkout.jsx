@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
   getCartItemsApi,
@@ -12,6 +12,7 @@ import toast from "react-hot-toast";
 
 function Checkout() {
   const navigate = useNavigate();
+  const paymentInProgressRef = useRef(false);
 
   const [cartItems, setCartItems] = useState([]);
   const [userProfile, setUserProfile] = useState(null);
@@ -172,16 +173,19 @@ function Checkout() {
 
     if (!shippingAddress) {
       toast.error("Please select a shipping address");
+      setPaying(false);
       return;
     }
 
     if (!paymentResponse?.id) {
       toast.error("Payment order not created properly");
+      setPaying(false);
       return;
     }
 
     if (!window.Razorpay) {
       toast.error("Razorpay SDK not loaded");
+      setPaying(false);
       return;
     }
 
@@ -193,6 +197,8 @@ function Checkout() {
       description: "Jewellery Purchase",
       order_id: paymentResponse.id,
       handler: async function (response) {
+        paymentInProgressRef.current = true;
+
         try {
           const verificationPayload = {
             razorpay_order_id: response.razorpay_order_id,
@@ -227,6 +233,10 @@ function Checkout() {
           );
         } finally {
           setPaying(false);
+
+          setTimeout(() => {
+            paymentInProgressRef.current = false;
+          }, 1500);
         }
       },
       prefill: {
@@ -238,6 +248,10 @@ function Checkout() {
       },
       modal: {
         ondismiss: function () {
+          if (paymentInProgressRef.current) {
+            return;
+          }
+
           setPaying(false);
           toast.error("Payment cancelled");
         },
@@ -248,8 +262,11 @@ function Checkout() {
 
     razorpay.on("payment.failed", function (response) {
       console.log("Razorpay payment failed:", response);
+      paymentInProgressRef.current = false;
       setPaying(false);
-      toast.error("Payment failed");
+      toast.error(
+        response?.error?.description || "Payment failed. Please try again."
+      );
     });
 
     razorpay.open();
@@ -282,6 +299,7 @@ function Checkout() {
       }
 
       setPaying(true);
+      paymentInProgressRef.current = false;
 
       const checkoutPayload = {
         couponCode: couponData?.code || "",
@@ -304,6 +322,7 @@ function Checkout() {
       await handleRazorpayOrder(paymentResponse, token);
     } catch (error) {
       console.log("Checkout error:", error);
+      paymentInProgressRef.current = false;
       setPaying(false);
       toast.error(
         error?.response?.data?.message ||
