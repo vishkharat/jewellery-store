@@ -301,32 +301,28 @@ const placeOrder = async (req, res) => {
       "orderItems.product"
     );
 
-    // fire-and-forget customer email
     try {
       const customerEmailData = getCustomerOrderConfirmationTemplate({
         order: populatedOrder,
         user,
       });
 
-      Promise.resolve(
-        sendEmail({
-          to: user.email,
-          subject: customerEmailData.subject,
-          text: customerEmailData.text,
-          html: customerEmailData.html,
-        })
-      )
-        .then((info) => {
-          console.log("CUSTOMER ORDER EMAIL SENT:", info?.response || info);
-        })
-        .catch((emailError) => {
-          console.error("CUSTOMER ORDER EMAIL ERROR:", emailError);
-        });
+      sendEmail({
+        to: user.email,
+        subject: customerEmailData.subject,
+        text: customerEmailData.text,
+        html: customerEmailData.html,
+      }).then((result) => {
+        if (result?.success) {
+          console.log("✅ CUSTOMER ORDER EMAIL SENT");
+        } else {
+          console.error("❌ CUSTOMER ORDER EMAIL FAILED:", result?.error);
+        }
+      });
     } catch (emailError) {
       console.error("CUSTOMER ORDER EMAIL PREP ERROR:", emailError);
     }
 
-    // fire-and-forget admin email
     try {
       if (process.env.ADMIN_EMAIL) {
         const adminEmailData = getAdminNewOrderTemplate({
@@ -334,20 +330,18 @@ const placeOrder = async (req, res) => {
           user,
         });
 
-        Promise.resolve(
-          sendEmail({
-            to: process.env.ADMIN_EMAIL,
-            subject: adminEmailData.subject,
-            text: adminEmailData.text,
-            html: adminEmailData.html,
-          })
-        )
-          .then((info) => {
-            console.log("ADMIN ORDER EMAIL SENT:", info?.response || info);
-          })
-          .catch((emailError) => {
-            console.error("ADMIN ORDER EMAIL ERROR:", emailError);
-          });
+        sendEmail({
+          to: process.env.ADMIN_EMAIL,
+          subject: adminEmailData.subject,
+          text: adminEmailData.text,
+          html: adminEmailData.html,
+        }).then((result) => {
+          if (result?.success) {
+            console.log("✅ ADMIN ORDER EMAIL SENT");
+          } else {
+            console.error("❌ ADMIN ORDER EMAIL FAILED:", result?.error);
+          }
+        });
       }
     } catch (emailError) {
       console.error("ADMIN ORDER EMAIL PREP ERROR:", emailError);
@@ -461,20 +455,18 @@ const cancelMyOrder = async (req, res) => {
           status: "Cancelled",
         });
 
-        Promise.resolve(
-          sendEmail({
-            to: order.user.email,
-            subject: statusEmailData.subject,
-            text: statusEmailData.text,
-            html: statusEmailData.html,
-          })
-        )
-          .then((info) => {
-            console.log("CUSTOMER CANCEL EMAIL SENT:", info?.response || info);
-          })
-          .catch((emailError) => {
-            console.error("CUSTOMER CANCEL EMAIL ERROR:", emailError);
-          });
+        sendEmail({
+          to: order.user.email,
+          subject: statusEmailData.subject,
+          text: statusEmailData.text,
+          html: statusEmailData.html,
+        }).then((result) => {
+          if (result?.success) {
+            console.log("✅ CUSTOMER CANCEL EMAIL SENT");
+          } else {
+            console.error("❌ CUSTOMER CANCEL EMAIL FAILED:", result?.error);
+          }
+        });
       }
     } catch (emailError) {
       console.error("CUSTOMER CANCEL EMAIL PREP ERROR:", emailError);
@@ -591,7 +583,6 @@ const updateOrderStatus = async (req, res) => {
     const updatedOrder = await order.save();
     console.log("AFTER ORDER SAVE");
 
-    // fire-and-forget email so API never hangs
     try {
       if (order.user?.email) {
         const statusEmailData = getOrderStatusUpdateTemplate({
@@ -600,20 +591,18 @@ const updateOrderStatus = async (req, res) => {
           status: newStatus,
         });
 
-        Promise.resolve(
-          sendEmail({
-            to: order.user.email,
-            subject: statusEmailData.subject,
-            text: statusEmailData.text,
-            html: statusEmailData.html,
-          })
-        )
-          .then((info) => {
-            console.log("ORDER STATUS EMAIL SENT:", info?.response || info);
-          })
-          .catch((emailError) => {
-            console.error("ORDER STATUS EMAIL ERROR:", emailError);
-          });
+        sendEmail({
+          to: order.user.email,
+          subject: statusEmailData.subject,
+          text: statusEmailData.text,
+          html: statusEmailData.html,
+        }).then((result) => {
+          if (result?.success) {
+            console.log("✅ ORDER STATUS EMAIL SENT");
+          } else {
+            console.error("❌ ORDER STATUS EMAIL FAILED:", result?.error);
+          }
+        });
       }
     } catch (emailError) {
       console.error("ORDER STATUS EMAIL PREP ERROR:", emailError);
